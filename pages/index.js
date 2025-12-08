@@ -1,6 +1,6 @@
 function Home() {
     return (
-        <h1>Eu amo minha familia</h1>
+        <h1>Eu amo minha familia!</h1>
     )
 }
 

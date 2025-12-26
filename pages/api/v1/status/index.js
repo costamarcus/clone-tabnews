@@ -27,7 +27,7 @@ async function status(request, response) {
     update_at: updateAt,
     dependencies: {
       database: {
-        status: "healthy - 1",
+        status: "healthy",
         max_connections: parseInt(databeMaxConectionValue),
         opened_connections: databaseOpenedConnectionsValue,
         latency: {},

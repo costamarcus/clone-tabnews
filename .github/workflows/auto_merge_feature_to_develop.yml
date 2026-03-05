@@ -1,0 +1,66 @@
+name: Auto-Merge Feature to Develop
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, review_requested]
+    branches:
+      - develop
+
+jobs:
+  auto_merge:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.head.ref == startsWith('feature/')
+    steps:
+      - name: Check for approval and status checks
+        id: check_pr
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            const { data: reviews } = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            const approvedReviews = reviews.filter(review => review.state === 'APPROVED');
+            const hasApproval = approvedReviews.length > 0;
+
+            const { data: status } = await github.rest.repos.getCombinedStatusForRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: pullRequest.head.sha,
+            });
+
+            const allStatusChecksPassed = status.state === 'success';
+
+            console.log(`PR #${context.issue.number} - Has Approval: ${hasApproval}, All Status Checks Passed: ${allStatusChecksPassed}, Mergeable: ${pullRequest.mergeable}`);
+
+            if (hasApproval && allStatusChecksPassed && pullRequest.mergeable) {
+              console.log('All conditions met for auto-merge.');
+              core.setOutput('should_merge', true);
+            } else {
+              console.log('Conditions not met for auto-merge.');
+              core.setOutput('should_merge', false);
+            }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Auto-merge Pull Request
+        if: steps.check_pr.outputs.should_merge == 'true'
+        run: |
+          gh pr merge ${{ github.event.pull_request.number }} --auto --squash
+        env:
+          GITHUB_TOKEN: ${{ secrets.TOKEN_COM_PERMISSAO_DE_MERGE }} # Use um PAT com permissão de merge
+
+      - name: Delete Feature Branch
+        if: steps.check_pr.outputs.should_merge == 'true'
+        run: |
+          gh api -X DELETE /repos/${{ github.repository }}/git/refs/heads/${{ github.event.pull_request.head.ref }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
